@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Luna Fight - By Darvo apps</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        /* =========================================
+           CSS STYLES & UI DESIGN (Arcade Mobile Style)
+           ========================================= */
+        :root {
+            --primary-color: #0088ff;
+            --hp-p1: #00ff00;
+            --hp-p2: #ff3300;
+            --bg-dark: #66b3ff; 
+        }
+
+        /* 100vw and 100vh implemented for full screen constraint */
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            overflow: hidden; background-color: var(--bg-dark);
+            font-family: 'Impact', 'Segoe UI', sans-serif;
+            user-select: none; -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        /* Ensure Canvas completely fills the screen */
+        #game-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10;
+        }
+        #game-canvas canvas {
+            display: block; width: 100% !important; height: 100% !important;
+        }
+
+        /* =========================================
+           ROTATE DEVICE PROMPT
+           ========================================= */
+        #rotate-prompt {
+            display: none; 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #002288 0%, #0055ff 100%);
+            z-index: 99999; 
+            flex-direction: column; align-items: center; justify-content: center;
+            color: #fff; text-align: center;
+        }
+        
+        @media screen and (max-width: 1024px) and (orientation: portrait) {
+            #rotate-prompt { display: flex; }
+        }
+
+        .rotate-icon { font-size: 80px; margin-bottom: 20px; animation: rotatePhone 1.5s ease-in-out infinite alternate; }
+        @keyframes rotatePhone { 0% { transform: rotate(0deg); } 100% { transform: rotate(-90deg); } }
+        .rotate-text { font-size: 30px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 2px 2px #000; }
+        .rotate-sub { font-size: 16px; font-family: sans-serif; color: #aaddff; }
+
+        /* =========================================
+           CURRENCY SYSTEM UI
+           ========================================= */
+        .currency-hud {
+            position: absolute; top: 15px; right: 20px;
+            display: flex; gap: 15px; font-family: sans-serif; font-weight: bold;
+            font-size: 18px; color: #fff; text-shadow: 2px 2px 4px #000; z-index: 2500;
+            background: rgba(0, 0, 0, 0.5); padding: 5px 15px; border-radius: 20px; border: 2px solid #0088ff;
+        }
+        .curr-item { display: flex; align-items: center; gap: 5px; }
+        .coin-icon { color: #ffd700; font-size: 20px; }
+        .gem-icon { color: #00ffff; font-size: 20px; }
+
+        .locked-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 1; transition: 0.3s;
+        }
+        .lock-icon { font-size: 30px; margin-bottom: 5px; }
+        .buy-btn {
+            background: #ffcc00; color: #000; border: 2px solid #fff; border-radius: 5px;
+            padding: 5px 10px; font-family: 'Impact'; font-size: 16px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-top: 5px;
+        }
+        .buy-btn:active { transform: scale(0.9); }
+
+        /* ========================================= */
+
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+
+        #menu-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #88ccff 0%, #3388ff 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 2000; pointer-events: auto;
+        }
+
+        .game-title { font-size: 9vw; color: #ffffff; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 0 10px #0055ff, 0 0 20px #0055ff, 4px 4px 0 #002288; margin-bottom: 0px; text-align: center; }
+        .subtitle { color: #ffffff; font-size: 18px; margin-bottom: 30px; letter-spacing: 2px; text-shadow: 2px 2px #002288; }
+        .company-name { position: absolute; bottom: 20px; color: #ffffff; font-size: 14px; font-family: sans-serif; font-weight: bold; letter-spacing: 2px; text-shadow: 1px 1px #002288; background: rgba(0, 34, 136, 0.5); padding: 5px 15px; border-radius: 20px; }
+
+        .character-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; padding: 10px; }
+
+        .char-card {
+            background: linear-gradient(135deg, #ffffff 0%, #cceeff 100%); position: relative;
+            border: 3px solid #0055ff; border-radius: 10px; padding: 15px; width: 160px; text-align: center;
+            cursor: pointer; transition: all 0.2s ease; box-shadow: 0 8px 20px rgba(0, 85, 255, 0.4); overflow: hidden;
+        }
+        .char-card:active { transform: scale(0.95); background: #88ccff; }
+
+        .char-icon { 
+            width: 80px; height: 80px; background: #0055ff; border-radius: 10px; margin: 0 auto 10px auto; 
+            display: flex; align-items: center; justify-content: center; border: 2px solid #fff; 
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5); 
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+        .char-name { color: #002288; font-size: 22px; margin-bottom: 5px; text-shadow: 1px 1px #fff; }
+        .char-stats { color: #444; font-size: 12px; line-height: 1.4; font-family: sans-serif; font-weight: bold;}
+
+        /* HUD & Game UI elements */
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #66b3ff; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; pointer-events: auto; }
+        .spinner { width: 60px; height: 60px; border: 5px solid rgba(255, 255, 255, 0.3); border-top-color: #ffffff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { color: #fff; font-size: 20px; letter-spacing: 2px; margin-bottom: 15px; text-shadow: 1px 1px #0055ff;}
+        .progress-bar-container { width: 80%; max-width: 400px; height: 15px; background: #3388ff; border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #00ffaa, #00aa55); transition: width 0.2s; }
+        #loading-log { color: #fff; font-size: 14px; margin-top: 10px; text-align: center; font-family: monospace;}
+        #hud { position: absolute; top: 10px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 2%; box-sizing: border-box; pointer-events: none; z-index: 100; transition: opacity 0.5s; }
+        .player-hud { width: 45%; display: flex; flex-direction: column; }
+        .player-hud.right { align-items: flex-end; }
+        .fighter-name { color: #fff; font-size: 22px; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; margin-bottom: 5px; text-transform: uppercase; }
+        .health-bar-bg { width: 100%; height: 28px; background: rgba(50,0,0,0.8); border: 3px solid #fff; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.8); transform: skewX(-15deg); }
+        .player-hud.right .health-bar-bg { transform: skewX(15deg); }
+        .health-bar-fill { height: 100%; width: 100%; transition: width 0.1s linear; }
+        #p1-hp { background: linear-gradient(180deg, #55ff55, #008800); }
+        #p2-hp { background: linear-gradient(180deg, #ffcc00, #cc4400); float: right; }
+        .stamina-bar-bg { width: 70%; height: 10px; background: rgba(0,0,0,0.7); border: 2px solid #aaa; margin-top: 5px; transform: skewX(-15deg); }
+        .player-hud.right .stamina-bar-bg { transform: skewX(15deg); }
+        .stamina-bar-fill { height: 100%; width: 100%; background: linear-gradient(180deg, #00ffff, #0055aa); transition: width 0.2s; }
+        #combo-display { position: absolute; top: 35%; left: 5%; font-size: 45px; color: #ffaa00; font-style: italic; text-shadow: 3px 3px 0 #000, 0 0 20px #ff0000; opacity: 0; transform: scale(0.5); transition: all 0.2s; }
+        .combo-active { opacity: 1 !important; transform: scale(1) !important; animation: pump 0.3s ease-out; }
+        @keyframes pump { 0% { transform: scale(1.5); } 100% { transform: scale(1); } }
+        #game-over-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 4000; pointer-events: auto; backdrop-filter: blur(5px); }
+        #go-title { font-size: 15vw; margin-bottom: 0px; text-shadow: 0 0 30px rgba(255,0,0,1); color: #fff; }
+        #go-subtitle { font-size: 6vw; color: #00eeff; margin-bottom: 20px; text-shadow: 2px 2px #000; }
+        .reward-text { color: #ffd700; font-size: 24px; margin-bottom: 30px; text-shadow: 1px 1px #000; display: none;}
+        .action-btn { padding: 15px 50px; font-size: 24px; font-family: 'Impact', sans-serif; background: #0088ff; color: #fff; border: 3px solid #fff; border-radius: 10px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,136,255,0.6); transition: 0.2s; margin-top:10px; }
+        .action-btn:active { background: #fff; color: #0088ff; transform: scale(0.9); }
+        #mobile-controls { position: absolute; bottom: 20px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; z-index: 1000; pointer-events: auto; transition: opacity 0.5s; }
+        
+        .d-pad { display: grid; grid-template-areas: ". up ." "left . right" ". down ."; gap: 5px; } 
+        #btn-jump { grid-area: up; } #btn-left { grid-area: left; } #btn-right { grid-area: right; } #btn-block { grid-area: down; }
+        .action-pad { display: flex; gap: 10px; align-items: flex-end; padding-bottom: 10px; } 
+        .ctrl-btn { width: 55px; height: 55px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.7); background: rgba(0,50,100,0.5); color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; user-select: none; backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.5); cursor: pointer; touch-action: none; }
+        #btn-punch { background: rgba(255, 50, 50, 0.6); border-color: rgba(255,100,100,0.8); width: 65px; height: 65px; font-size: 14px; } 
+        #btn-kick { background: rgba(50, 100, 255, 0.6); border-color: rgba(100,150,255,0.8); width: 65px; height: 65px; font-size: 14px; } 
+        .ctrl-btn:active, .ctrl-btn.active { background: rgba(255,255,255,1) !important; color: #000; border-color: #fff; transform: scale(0.9); }
+        
+        #damage-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ff0000; opacity: 0; pointer-events: none; z-index: 150; transition: opacity 0.1s; }
+        #pc-instructions { position: absolute; bottom: 10px; width: 100%; text-align: center; color: #fff; font-family: monospace; z-index: 100; text-shadow: 1px 1px #000; transition: opacity 0.5s;}
+
+        /* =========================================
+           ROUND & COUNTDOWN UI STYLES
+           ========================================= */
+        #round-tracker {
+            position: absolute; top: 55px; width: 100%; text-align: center;
+            font-size: 24px; color: #fff; text-shadow: 2px 2px 4px #000;
+            z-index: 100; pointer-events: none; transition: opacity 0.5s;
+        }
+        #countdown-ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; align-items: center; justify-content: center;
+            z-index: 5000; font-size: 15vw; color: #fff; pointer-events: none;
+            text-shadow: 5px 5px 0px #000, 0px 0px 30px #ffaa00;
+        }
+        .anim-pop { animation: popScale 1s ease-in-out; }
+        @keyframes popScale {
+            0% { transform: scale(0.2); opacity: 0; }
+            40% { transform: scale(1.2); opacity: 1; }
+            60% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        #round-msg-ui {
+            position: absolute; top: 30%; left: 0; width: 100%; text-align: center;
+            display: none; z-index: 4500; font-size: 8vw; color: #00ffff; pointer-events: none;
+            text-shadow: 4px 4px 0 #000, 0 0 20px #0055ff;
+        }
+
+        /* =========================================
+           MULTIPLAYER UI STYLES
+           ========================================= */
+        #multiplayer-panel {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 2500; display: none;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
+        .mp-box {
+            background: linear-gradient(135deg, #002288, #0055ff); padding: 20px;
+            border-radius: 10px; border: 3px solid #00ffff; text-align: center; width: 300px;
+            box-shadow: 0 0 20px #00ffff; margin-bottom: 10px;
+        }
+        .mp-box input, .mp-box select {
+            width: 90%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none;
+            font-size: 16px; font-weight: bold; text-align: center;
+        }
+        .mode-btn {
+            background: #ffaa00; color: #000; padding: 10px 20px; font-size: 18px; border: 2px solid #fff;
+            border-radius: 5px; cursor: pointer; font-family: 'Impact'; margin: 10px 5px;
+        }
+        .mode-btn:active { transform: scale(0.9); }
+        #room-id-display { font-size: 24px; color: #00ff00; margin: 10px 0; letter-spacing: 3px; }
+
+        /* =========================================
+           SETTINGS UI STYLES (NEW)
+           ========================================= */
+        .btn-settings {
+            position: absolute; top: 15px; left: 20px;
+            background: #333; color: #fff; border: 2px solid #fff; border-radius: 8px;
+            padding: 8px 15px; font-family: 'Impact'; font-size: 16px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 2500;
+        }
+        .btn-settings:active { transform: scale(0.9); }
+
+        #settings-panel {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 2600; display: none;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
+        .setting-row {
+            display: flex; justify-content: space-between; align-items: center; margin: 15px 0;
+            font-family: sans-serif; font-size: 16px; font-weight: bold; width: 100%;
+        }
+        .setting-row input[type=range] { width: 120px; }
+        .setting-row input[type=checkbox] { width: 20px; height: 20px; }
+    </style>
+</head>
+<body>
+
+    <!-- ROTATE DEVICE PROMPT -->
+    <div id="rotate-prompt">
+        <div class="rotate-icon">📱</div>
+        <div class="rotate-text">PLEASE ROTATE DEVICE</div>
+        <div class="rotate-sub">গেমটি খেলতে আপনার মোবাইলটি রোটেট (Landscape) করে নিন</div>
+    </div>
+
+    <!-- BACKGROUND MUSIC SYSTEM -->
+    <audio id="game-bgm" preload="auto"></audio>
+    <script>
+        const bgmElement = document.getElementById('game-bgm');
+        const bgmPlaylist = [
+            "https://files.catbox.moe/q74jb8.mp4",
+            "https://files.catbox.moe/fq5wxr.webm",
+            "https://files.catbox.moe/fq5wxr.testing3"
+        ];
+        let currentBgmIndex = 0;
+        bgmElement.src = bgmPlaylist[currentBgmIndex];
+
+        bgmElement.addEventListener('ended', function() {
+            currentBgmIndex = (currentBgmIndex + 1) % bgmPlaylist.length;
+            bgmElement.src = bgmPlaylist[currentBgmIndex];
+            bgmElement.play().catch(e => console.log("Audio play error:", e));
+        });
+    </script>
+
+    <div id="ui-layer">
+        <div id="damage-flash"></div>
+        <div id="hud" style="display: none;">
+            <div class="player-hud">
+                <div id="p1-name-display" class="fighter-name">PLAYER 1</div>
+                <div class="health-bar-bg"><div id="p1-hp" class="health-bar-fill"></div></div>
+                <div class="stamina-bar-bg"><div id="p1-stamina" class="stamina-bar-fill"></div></div>
+            </div>
+            <div class="player-hud right">
+                <div id="p2-name-display" class="fighter-name">OPPONENT</div>
+                <div class="health-bar-bg"><div id="p2-hp" class="health-bar-fill"></div></div>
+                <div class="stamina-bar-bg" style="display:flex; justify-content:flex-end;"><div id="p2-stamina" class="stamina-bar-fill"></div></div>
+            </div>
+        </div>
+
+        <!-- NEW ROUND TRACKER UI -->
+        <div id="round-tracker" style="display: none;">
+            ROUND <span id="current-round-text">1</span><br>
+            <span style="color:#55ff55" id="p1-win-count">0</span> - <span style="color:#ffcc00" id="p2-win-count">0</span>
+        </div>
+
+        <div id="combo-display">2 HITS!</div>
+        <div id="pc-instructions" style="display: none;">PC: [A/D] Move | [W] Jump | [S] Block | [J] Punch | [K] Kick</div>
+        
+        <!-- NEW COUNTDOWN & ROUND WIN MESSAGES -->
+        <div id="countdown-ui">3</div>
+        <div id="round-msg-ui">PLAYER 1 WINS ROUND!</div>
+    </div>
+
+    <!-- MAIN MENU -->
+    <div id="menu-screen">
+        <!-- NEW SETTINGS BUTTON -->
+        <button class="btn-settings" onclick="toggleSettings(true)">⚙️ SETTINGS</button>
+
+        <div class="currency-hud">
+            <div class="curr-item"><span class="coin-icon">🪙</span> <span id="ui-coins">0</span></div>
+            <div class="curr-item"><span class="gem-icon">💎</span> <span id="ui-diamonds">0</span></div>
+        </div>
+
+        <h1 class="game-title">LUNA FIGHT</h1>
+        <div class="subtitle">DAYLIGHT COMBAT</div>
+
+        <!-- MULTIPLAYER TOGGLE BUTTON -->
+        <div style="margin-bottom: 20px;">
+            <button class="mode-btn" onclick="toggleMultiplayerMenu(true)" style="background: #00eeff;">MULTIPLAYER (ONLINE)</button>
+        </div>
+        
+        <div class="character-cards">
+            <!-- Free Character: MONKEY OF KING -->
+            <div class="char-card" onclick="selectFighter('meta', 0, 'none')">
+                <div class="char-icon" style="background-image: url('https://i.postimg.cc/xTrwYn4V/IMG-20260505-225250-426.jpg');"></div>
+                <div class="char-name">MONKEY OF KING</div>
+                <div class="char-stats">Style: Ninjutsu<br>Speed: ★★★★☆<br>Power: ★★★☆☆</div>
+            </div>
+            
+            <!-- Locked Character: GOLDEN BOY -->
+            <div class="char-card" id="card-moto">
+                <div class="char-icon" style="background-image: url('https://i.postimg.cc/T3sqMYtR/IMG-20260505-225450-531.jpg'); border-color: #ffcc00;"></div>
+                <div class="char-name">GOLDEN BOY</div>
+                <div class="char-stats">Style: Karate<br>Speed: ★★★☆☆<br>Power: ★★★★☆</div>
+                
+                <div class="locked-overlay" id="lock-moto">
+                    <div class="lock-icon">🔒</div>
+                    <button class="buy-btn" onclick="selectFighter('moto', 500, 'coin', event)">Buy 500 🪙</button>
+                </div>
+            </div>
+        </div>
+        <div class="company-name">DEVELOPED BY DARVO APPS</div>
+    </div>
+
+    <!-- MULTIPLAYER PANEL -->
+    <div id="multiplayer-panel">
+        <h2 style="font-size: 40px; margin-bottom: 10px; color:#00ffff;">ONLINE MATCH</h2>
+        
+        <div class="mp-box" id="mp-menu-box">
+            <button class="mode-btn" onclick="showCreateRoom()">CREATE ROOM (Host)</button>
+            <button class="mode-btn" onclick="showJoinRoom()">JOIN ROOM (Guest)</button>
+            <br>
+            <button class="mode-btn" style="background: #ff3333;" onclick="toggleMultiplayerMenu(false)">BACK</button>
+        </div>
+
+        <div class="mp-box" id="mp-create-box" style="display:none;">
+            <h3>Create Room Settings</h3>
+            <label>Bet Amount (Coins):</label>
+            <input type="number" id="bet-amount" value="100" min="10">
+            <label>Rounds to Win (Match Line):</label>
+            <select id="round-select">
+                <option value="3" selected>3 Rounds</option>
+                <option value="5">5 Rounds</option>
+                <option value="7">7 Rounds</option>
+                <option value="9">9 Rounds</option>
+                <option value="11">11 Rounds</option>
+                <option value="13">13 Rounds</option>
+                <option value="15">15 Rounds</option>
+                <option value="17">17 Rounds</option>
+                <option value="19">19 Rounds</option>
+                <option value="21">21 Rounds</option>
+            </select>
+            <button class="mode-btn" onclick="createOnlineRoom()">CREATE</button>
+            <button class="mode-btn" style="background: #ff3333;" onclick="showMainMenuMP()">CANCEL</button>
+        </div>
+
+        <div class="mp-box" id="mp-join-box" style="display:none;">
+            <h3>Join Room</h3>
+            <label>Enter Room ID:</label>
+            <input type="text" id="join-room-id" placeholder="e.g. 1234">
+            <button class="mode-btn" onclick="joinOnlineRoom()">JOIN</button>
+            <button class="mode-btn" style="background: #ff3333;" onclick="showMainMenuMP()">CANCEL</button>
+        </div>
+
+        <div class="mp-box" id="mp-waiting-box" style="display:none;">
+            <h3>Waiting for opponent...</h3>
+            <div id="room-id-display">Room ID: ---</div>
+            <p style="color:#ffff00; font-size: 14px;">Tell your friend to join using this Room ID.</p>
+            <button class="mode-btn" style="background: #ff3333;" onclick="cancelRoom()">CANCEL</button>
+        </div>
+    </div>
+
+    <!-- SETTINGS PANEL (NEW) -->
+    <div id="settings-panel">
+        <div class="mp-box">
+            <h2 style="font-size: 30px; margin-bottom: 20px; color:#00ffff; font-family:'Impact'">SETTINGS</h2>
+            
+            <div class="setting-row">
+                <label>Music Volume:</label>
+                <input type="range" id="bgm-vol" min="0" max="1" step="0.1" value="0.5" onchange="applySettings()">
+            </div>
+            
+            <div class="setting-row">
+                <label>SFX (Sounds):</label>
+                <input type="checkbox" id="sfx-toggle" checked onchange="applySettings()">
+            </div>
+            
+            <div class="setting-row">
+                <label>Snow Effect:</label>
+                <input type="checkbox" id="snow-toggle" checked onchange="applySettings()">
+            </div>
+
+            <button class="mode-btn" style="background: #ff3333; margin-top: 20px;" onclick="toggleSettings(false)">CLOSE</button>
+        </div>
+    </div>
+
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div class="loading-text">ENTERING ARENA...</div>
+        <div class="progress-bar-container"><div id="progress-bar"></div></div>
+        <div id="loading-log">Connecting...</div>
+    </div>
+
+    <div id="game-over-screen">
+        <div id="go-title">K.O.</div>
+        <div id="go-subtitle">YOU WIN!</div>
+        <div class="reward-text" id="reward-display">+50 🪙</div>
+        <button class="action-btn" onclick="location.reload()">MAIN MENU</button>
+    </div>
+
+    <div id="mobile-controls" style="display: none;">
+        <div class="d-pad">
+            <div class="ctrl-btn" id="btn-jump">▲</div>
+            <div class="ctrl-btn" id="btn-left">◄</div>
+            <div class="ctrl-btn" id="btn-right">►</div>
+            <div class="ctrl-btn" id="btn-block">▼</div>
+        </div>
+        <div class="action-pad">
+            <div class="ctrl-btn" id="btn-punch">PUNCH</div>
+            <div class="ctrl-btn" id="btn-kick">KICK</div>
+        </div>
+    </div>
+
+    <div id="game-canvas"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+
+    <script>
+        // =========================================
+        // FIREBASE INITIALIZATION 
+        // =========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDByY-iVHPcsI1GmsRhJMKMgOrb2rX2148",
+            authDomain: "luna-fight.firebaseapp.com",
+            databaseURL: "https://luna-fight-default-rtdb.firebaseio.com",
+            projectId: "luna-fight",
+            storageBucket: "luna-fight.firebasestorage.app",
+            messagingSenderId: "447052945600",
+            appId: "1:447052945600:web:aa4b59fa673a6564f2b525"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // =========================================
+        // USER DATA SYSTEM
+        // =========================================
+        const UserData = {
+            coins: 0, diamonds: 0, unlockedChars: ['meta'], 
+            init() {
+                const savedData = localStorage.getItem('lunaFightSave');
+                if(savedData) {
+                    const data = JSON.parse(savedData);
+                    this.coins = data.coins || 0; this.diamonds = data.diamonds || 0; this.unlockedChars = data.unlockedChars || ['meta'];
+                }
+                this.updateUI(); this.checkLocks();
+            },
+            save() {
+                localStorage.setItem('lunaFightSave', JSON.stringify({ coins: this.coins, diamonds: this.diamonds, unlockedChars: this.unlockedChars }));
+                this.updateUI();
+            },
+            updateUI() { document.getElementById('ui-coins').innerText = this.coins; document.getElementById('ui-diamonds').innerText = this.diamonds; },
+            checkLocks() {
+                if(this.unlockedChars.includes('moto')) {
+                    const lockMoto = document.getElementById('lock-moto'); if(lockMoto) lockMoto.style.display = 'none';
+                    document.getElementById('card-moto').onclick = () => selectFighter('moto', 0, 'none');
+                }
+            },
+            addMatchReward() {
+                let coinReward = 50; let diamondReward = Math.random() > 0.8 ? 1 : 0; 
+                this.coins += coinReward; this.diamonds += diamondReward; this.save();
+                
+                let rewardText = `+${coinReward} 🪙`;
+                if(diamondReward > 0) rewardText += ` | +${diamondReward} 💎`;
+                let rewDisplay = document.getElementById('reward-display');
+                rewDisplay.innerText = rewardText; rewDisplay.style.display = 'block';
+            },
+            buyCharacter(charId, price, currencyType) {
+                if(currencyType === 'coin') {
+                    if(this.coins >= price) { this.coins -= price; this.unlockedChars.push(charId); this.save(); this.checkLocks(); alert("Character Unlocked!"); } 
+                    else { alert("Not enough Coins!"); }
+                } 
+            }
+        };
+
+        window.onload = () => { UserData.init(); };
+
+        // =========================================
+        // MULTIPLAYER LOGIC MANAGER
+        // =========================================
+        const MP_Manager = {
+            isOnline: false,
+            roomId: null,
+            role: null, // 'p1' (Host) or 'p2' (Guest)
+            betAmount: 0,
+            targetRounds: 3,
+            selectedCharacter: 'meta',
+            syncInterval: null,
+
+            setRoomData(id, role, bet, rounds) {
+                this.isOnline = true; this.roomId = id; this.role = role; 
+                this.betAmount = parseInt(bet); this.targetRounds = parseInt(rounds);
+            },
+
+            startGameSync() {
+                if(!this.isOnline) return;
+                const roomRef = database.ref('rooms/' + this.roomId);
+                
+                // Sync Local Data to Firebase
+                this.syncInterval = setInterval(() => {
+                    if(!GameEngine.isPlaying) return;
+                    let localFighter = this.role === 'p1' ? GameEngine.p1 : GameEngine.p2;
+                    let data = {
+                        x: localFighter.mesh ? localFighter.mesh.position.x : 0,
+                        state: localFighter.state,
+                        hp: localFighter.hp
+                    };
+                    roomRef.child(this.role).set(data);
+                }, 50);
+
+                // Listen for Opponent Data
+                let oppRole = this.role === 'p1' ? 'p2' : 'p1';
+                roomRef.child(oppRole).on('value', (snapshot) => {
+                    if(!GameEngine.isPlaying) return;
+                    let data = snapshot.val();
+                    if(data) {
+                        let oppFighter = this.role === 'p1' ? GameEngine.p2 : GameEngine.p1;
+                        if(oppFighter.mesh) oppFighter.mesh.position.x = data.x;
+                        
+                        // FIX: হেলথ শুধু কমবে, কখনোই আগের জায়গায় ফিরে যাবে না (ম্যাচ শুরুর সময় বাদে)
+                        if (data.hp < oppFighter.hp || (data.hp === 100 && GameEngine.isCountdown)) {
+                            oppFighter.hp = data.hp;
+                        }
+                        
+                        // Sync animations based on state
+                        if(oppFighter.state !== data.state && !oppFighter.fallbackMode) {
+                            oppFighter.state = data.state;
+                            if(['punch', 'kick', 'hit', 'jump', 'block', 'idle', 'dead'].includes(data.state)) {
+                                oppFighter.playAnim(data.state);
+                                if(data.state === 'punch') sfx.playSwing();
+                                if(data.state === 'kick') sfx.playSwing();
+                                if(data.state === 'jump') sfx.playJump();
+                            }
+                        }
+                    }
+                });
+            },
+
+            endGame(isWinner) {
+                if(!this.isOnline) return;
+                clearInterval(this.syncInterval);
+                database.ref('rooms/' + this.roomId).remove(); // Cleanup
+                
+                let rewDisplay = document.getElementById('reward-display');
+                if(isWinner) {
+                    UserData.coins += this.betAmount;
+                    rewDisplay.innerText = `You won the Bet! +${this.betAmount} 🪙`;
+                    rewDisplay.style.color = "#00ffaa";
+                } else {
+                    UserData.coins -= this.betAmount;
+                    if(UserData.coins < 0) UserData.coins = 0;
+                    rewDisplay.innerText = `You lost the Bet! -${this.betAmount} 🪙`;
+                    rewDisplay.style.color = "#ff3333";
+                }
+                rewDisplay.style.display = 'block';
+                UserData.save();
+            }
+        };
+
+        // UI Functions for Multiplayer
+        function toggleMultiplayerMenu(show) {
+            document.getElementById('multiplayer-panel').style.display = show ? 'flex' : 'none';
+            if(show) showMainMenuMP();
+        }
+        function showMainMenuMP() {
+            document.getElementById('mp-menu-box').style.display = 'block';
+            document.getElementById('mp-create-box').style.display = 'none';
+            document.getElementById('mp-join-box').style.display = 'none';
+            document.getElementById('mp-waiting-box').style.display = 'none';
+        }
+        function showCreateRoom() {
+            document.getElementById('mp-menu-box').style.display = 'none'; document.getElementById('mp-create-box').style.display = 'block';
+        }
+        function showJoinRoom() {
+            document.getElementById('mp-menu-box').style.display = 'none'; document.getElementById('mp-join-box').style.display = 'block';
+        }
+        function createOnlineRoom() {
+            let bet = parseInt(document.getElementById('bet-amount').value);
+            let rounds = parseInt(document.getElementById('round-select').value);
+            if(UserData.coins < bet) { alert("You don't have enough coins to bet this amount!"); return; }
+            
+            let roomId = Math.floor(1000 + Math.random() * 9000).toString(); // 4 digit room id
+            
+            database.ref('rooms/' + roomId).set({
+                bet: bet, rounds: rounds, status: 'waiting', hostChar: MP_Manager.selectedCharacter
+            });
+
+            MP_Manager.setRoomData(roomId, 'p1', bet, rounds);
+            document.getElementById('mp-create-box').style.display = 'none';
+            document.getElementById('mp-waiting-box').style.display = 'block';
+            document.getElementById('room-id-display').innerText = "Room ID: " + roomId;
+
+            // Wait for Player 2
+            database.ref('rooms/' + roomId + '/status').on('value', (snap) => {
+                if(snap.val() === 'playing') {
+                    database.ref('rooms/' + roomId + '/status').off(); // stop listening
+                    document.getElementById('multiplayer-panel').style.display = 'none';
+                    GameEngine.initGame(MP_Manager.selectedCharacter); // Start game!
+                }
+            });
+        }
+        function joinOnlineRoom() {
+            let roomId = document.getElementById('join-room-id').value;
+            if(!roomId) return;
+            
+            database.ref('rooms/' + roomId).once('value').then((snap) => {
+                if(snap.exists() && snap.val().status === 'waiting') {
+                    let data = snap.val();
+                    if(UserData.coins < data.bet) { alert("You don't have enough coins for this room's bet!"); return; }
+                    
+                    MP_Manager.setRoomData(roomId, 'p2', data.bet, data.rounds);
+                    database.ref('rooms/' + roomId).update({ status: 'playing', guestChar: MP_Manager.selectedCharacter });
+                    
+                    document.getElementById('multiplayer-panel').style.display = 'none';
+                    GameEngine.initGame(MP_Manager.selectedCharacter); // Start game!
+                } else {
+                    alert("Room not found or already full!");
+                }
+            });
+        }
+        function cancelRoom() {
+            if(MP_Manager.roomId) database.ref('rooms/' + MP_Manager.roomId).remove();
+            showMainMenuMP();
+        }
+
+        // =========================================
+        // SETTINGS FUNCTIONS (NEW)
+        // =========================================
+        function toggleSettings(show) {
+            document.getElementById('settings-panel').style.display = show ? 'flex' : 'none';
+        }
+
+        function applySettings() {
+            // Update Music Volume
+            const bgm = document.getElementById('game-bgm');
+            bgm.volume = document.getElementById('bgm-vol').value;
+
+            // Update SFX Status
+            sfx.enabled = document.getElementById('sfx-toggle').checked;
+
+            // Update Snow Effect Status (if game has started)
+            if(GameEngine.snowSystem) {
+                GameEngine.snowSystem.visible = document.getElementById('snow-toggle').checked;
+            }
+        }
+
+        function selectFighter(charId, price, currencyType, event = null) {
+            if(event) event.stopPropagation(); 
+            if(UserData.unlockedChars.includes(charId)) { 
+                if(document.getElementById('multiplayer-panel').style.display === 'flex') {
+                    MP_Manager.selectedCharacter = charId;
+                    alert("Selected " + charId + " for Online Match!");
+                } else {
+                    MP_Manager.isOnline = false; // Reset to offline
+                    GameEngine.initGame(charId); 
+                }
+            } else {
+                let confirmBuy = confirm(`Do you want to buy this character for ${price} ${currencyType}s?`);
+                if(confirmBuy) UserData.buyCharacter(charId, price, currencyType);
+            }
+        }
+
+        // =========================================
+        // ENGINE CODE
+        // =========================================
+        const CONFIG = { arenaRadius: 300, gravity: -800, groundY: -120 };
+        const ASSETS = {
+            meta: "https://files.catbox.moe/jem8lu.fbx", moto: "https://files.catbox.moe/d21duz.fbx",
+            punch: "https://files.catbox.moe/n7jdt0.fbx", kick: "https://files.catbox.moe/332jy9.fbx",
+            hit: "https://files.catbox.moe/0xj03z.fbx", jump: "https://files.catbox.moe/rj914n.fbx",
+            win: "https://files.catbox.moe/t0qirn.fbx", lose: "https://files.catbox.moe/if279r.fbx"
+        };
+
+        class AudioEngine {
+            constructor() {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if(AudioContext) { this.ctx = new AudioContext(); this.enabled = true; } else { this.enabled = false; }
+            }
+            playTone(freq, type, duration, vol) {
+                if(!this.enabled) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playPunch() { this.playTone(150, 'triangle', 0.1, 1.5); setTimeout(() => this.playTone(50, 'square', 0.2, 2), 50); }
+            playKick() { this.playTone(200, 'sawtooth', 0.1, 1); setTimeout(() => this.playTone(60, 'square', 0.3, 2.5), 80); }
+            playSwing() { this.playTone(400, 'sine', 0.1, 0.5); }
+            playHit() { this.playTone(100, 'sawtooth', 0.2, 2); this.playTone(800, 'square', 0.1, 0.5); }
+            playBlock() { this.playTone(600, 'sine', 0.1, 1); }
+            playJump() { this.playTone(300, 'sine', 0.3, 0.5); }
+            playKO() { this.playTone(50, 'sawtooth', 1.5, 3); this.playTone(100, 'square', 2.0, 2); }
+            playCountBeep() { this.playTone(440, 'sine', 0.2, 1); }
+            playFightBeep() { this.playTone(880, 'sine', 0.4, 1.5); }
+        }
+        const sfx = new AudioEngine();
+
+        class ParticleEngine {
+            constructor(scene) {
+                this.scene = scene; this.particles = [];
+                this.matSpark = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+                this.geometry = new THREE.BoxGeometry(3, 3, 3);
+            }
+            createHitEffect(x, y, z, isBlock = false) {
+                const count = isBlock ? 10 : 30;
+                const mat = isBlock ? new THREE.MeshBasicMaterial({ color: 0x00ffff }) : this.matSpark;
+                for(let i=0; i<count; i++) {
+                    const p = new THREE.Mesh(this.geometry, mat);
+                    p.position.set(x + (Math.random()-0.5)*20, y + (Math.random()-0.5)*20, z + (Math.random()-0.5)*20);
+                    const vx = (Math.random() - 0.5) * 300; const vy = (Math.random() * 200) + 100; const vz = (Math.random() - 0.5) * 100;
+                    this.scene.add(p); this.particles.push({ mesh: p, vx: vx, vy: vy, vz: vz, life: 1.0 });
+                }
+            }
+            update(dt) {
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i]; p.life -= dt * 2; p.vy += CONFIG.gravity * dt;
+                    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+                    if(p.life <= 0 || p.mesh.position.y < CONFIG.groundY) { this.scene.remove(p.mesh); this.particles.splice(i, 1); }
+                }
+            }
+        }
+
+        class InputManager {
+            constructor() {
+                this.keys = { left: false, right: false, up: false, punch: false, kick: false, block: false };
+                this.initKeyboard(); this.initPointerControls();
+            }
+            initKeyboard() {
+                window.addEventListener('keydown', (e) => this.setKey(e.code, true));
+                window.addEventListener('keyup', (e) => this.setKey(e.code, false));
+            }
+            setKey(code, state) {
+                if(code === 'KeyA' || code === 'ArrowLeft') this.keys.left = state;
+                if(code === 'KeyD' || code === 'ArrowRight') this.keys.right = state;
+                if(code === 'KeyW' || code === 'ArrowUp') this.keys.up = state;
+                if(code === 'KeyJ') this.keys.punch = state;
+                if(code === 'KeyK') this.keys.kick = state;
+                if(code === 'KeyS' || code === 'ArrowDown') this.keys.block = state;
+            }
+            initPointerControls() {
+                const bind = (id, key) => {
+                    const el = document.getElementById(id);
+                    if(!el) return;
+                    const pressDown = (e) => { e.preventDefault(); this.keys[key] = true; el.classList.add('active'); };
+                    const pressUp = (e) => { e.preventDefault(); this.keys[key] = false; el.classList.remove('active'); };
+                    el.addEventListener('pointerdown', pressDown); el.addEventListener('pointerup', pressUp);
+                    el.addEventListener('pointerleave', pressUp); el.addEventListener('pointercancel', pressUp);
+                };
+                bind('btn-left', 'left'); bind('btn-right', 'right'); bind('btn-jump', 'up'); bind('btn-block', 'block');
+                bind('btn-punch', 'punch'); bind('btn-kick', 'kick');
+            }
+        }
+
+        class Fighter {
+            constructor(scene, isPlayer, name) {
+                this.scene = scene; this.isPlayer = isPlayer; this.name = name;
+                this.hp = 100; this.stamina = 100; this.speed = 220; this.jumpPower = 450;
+                this.state = 'idle'; this.velocityY = 0; this.isGrounded = true;
+                this.mesh = null; this.mixer = null; this.actions = {}; this.currentAction = null;
+                this.fallbackMode = false; this.attackCooldown = 0; this.currentDamage = 0; this.hitboxRange = 130;
+                this.damageDealt = false; 
+                this.createDummyMesh();
+            }
+            createDummyMesh() {
+                const color = this.isPlayer ? 0x0055ff : 0xff2222;
+                const mat = new THREE.MeshLambertMaterial({ color: color });
+                this.mesh = new THREE.Mesh(new THREE.BoxGeometry(50, 140, 40), mat);
+                this.mesh.position.set(this.isPlayer ? -120 : 120, CONFIG.groundY + 70, 0);
+                this.mesh.castShadow = true;
+                this.scene.add(this.mesh); this.fallbackMode = true;
+            }
+            setFBX(fbx, animationsData) {
+                const oldPos = this.mesh.position.clone(); this.scene.remove(this.mesh);
+                this.mesh = fbx; this.mesh.scale.set(0.65, 0.65, 0.65);
+                this.mesh.position.copy(oldPos); this.mesh.position.y = CONFIG.groundY;
+                this.mesh.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                this.scene.add(this.mesh);
+                this.mixer = new THREE.AnimationMixer(this.mesh); this.fallbackMode = false;
+                try {
+                    if (this.mesh.animations.length > 0) {
+                        this.actions['idle'] = this.mixer.clipAction(this.mesh.animations[0]);
+                        this.actions['idle'].play(); this.currentAction = this.actions['idle'];
+                    }
+                    for (const [key, clip] of Object.entries(animationsData)) {
+                        if(clip) {
+                            const action = this.mixer.clipAction(clip);
+                            if (key !== 'idle' && key !== 'win' && key !== 'lose') { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; }
+                            this.actions[key] = action;
+                        }
+                    }
+                } catch(e) { this.fallbackMode = true; }
+            }
+            resetForRound() {
+                this.hp = 100;
+                this.stamina = 100;
+                this.state = 'idle';
+                this.attackCooldown = 0;
+                this.isGrounded = true;
+                this.velocityY = 0;
+                if(this.mesh) {
+                    /* FIX 2: P1 is ALWAYS on Left, P2 is ALWAYS on Right in 3D Space */
+                    let isLeftSide = (this === GameEngine.p1); 
+                    
+                    this.mesh.position.set(isLeftSide ? -120 : 120, this.fallbackMode ? CONFIG.groundY + 70 : CONFIG.groundY, 0);
+                    this.mesh.rotation.x = 0; this.mesh.rotation.z = 0;
+                    this.mesh.rotation.y = isLeftSide ? Math.PI / 2 : -Math.PI / 2;
+                }
+                this.playAnim('idle');
+            }
+            playAnim(name, speed = 1) {
+                if (this.state === 'dead' && name !== 'lose' && name !== 'win') return;
+                if (!this.fallbackMode && this.actions[name]) {
+                    if (this.currentAction) this.currentAction.fadeOut(0.2);
+                    this.actions[name].reset().setEffectiveTimeScale(speed).fadeIn(0.2).play();
+                    this.currentAction = this.actions[name];
+                } else if (this.fallbackMode) {
+                    if(name === 'punch') { this.mesh.rotation.z = this.isPlayer ? -0.3 : 0.3; setTimeout(() => this.mesh.rotation.z = 0, 200); } 
+                    else if (name === 'kick') { this.mesh.rotation.x = -0.5; setTimeout(() => this.mesh.rotation.x = 0, 300); } 
+                    else if (name === 'hit') { this.mesh.rotation.z = this.isPlayer ? 0.3 : -0.3; setTimeout(() => this.mesh.rotation.z = 0, 300); } 
+                    else if (name === 'dead' || name === 'lose') { this.mesh.rotation.z = Math.PI / 2; this.mesh.position.y = CONFIG.groundY + 20; }
+                }
+            }
+            attack(type) {
+                if(this.state !== 'idle' && this.state !== 'move') return false;
+                if(this.stamina < 15) return false;
+                this.state = 'attack';
+                this.attackCooldown = type === 'punch' ? 0.6 : 0.9;
+                this.currentDamage = type === 'punch' ? 8 : 14;
+                this.stamina -= type === 'punch' ? 15 : 25;
+                this.damageDealt = false; 
+                sfx.playSwing(); this.playAnim(type, 1.5);
+                return true; 
+            }
+            takeDamage(amount) {
+                if(this.state === 'dead') return;
+                if(this.state === 'block' && this.stamina > 0) { this.stamina -= 20; sfx.playBlock(); return 'blocked'; }
+                this.hp -= amount; if(this.hp < 0) this.hp = 0;
+                
+                this.state = 'hit'; this.attackCooldown = 0.5;
+                sfx.playHit(); this.playAnim('hit');
+                if(this.hp === 0) { this.state = 'dead'; sfx.playKO(); }
+                return 'hit';
+            }
+            update(dt, opponent) {
+                if(this.mixer && !this.fallbackMode) this.mixer.update(dt);
+                if(!this.isGrounded) {
+                    this.velocityY += CONFIG.gravity * dt; this.mesh.position.y += this.velocityY * dt;
+                    const groundLevel = this.fallbackMode ? CONFIG.groundY + 70 : CONFIG.groundY;
+                    if(this.mesh.position.y <= groundLevel) {
+                        this.mesh.position.y = groundLevel; this.isGrounded = true; this.velocityY = 0;
+                        if(this.state === 'idle') this.playAnim('idle');
+                    }
+                }
+                if (this.state === 'dead') return; 
+                if(this.attackCooldown > 0) {
+                    this.attackCooldown -= dt;
+                    if(this.attackCooldown <= 0) { this.state = 'idle'; this.playAnim('idle'); }
+                } else if(this.state === 'hit' || this.state === 'attack') {
+                    this.state = 'idle'; this.playAnim('idle');
+                }
+                if(this.state !== 'attack' && this.state !== 'block') { this.stamina = Math.min(100, this.stamina + 20 * dt); }
+                if(this.mesh && opponent.mesh) {
+                    if (this.mesh.position.x < opponent.mesh.position.x) this.mesh.rotation.y = Math.PI / 2;
+                    else this.mesh.rotation.y = -Math.PI / 2;
+                }
+            }
+            move(dir, dt) {
+                if(this.state === 'attack' || this.state === 'hit' || this.state === 'dead' || this.state === 'block') return;
+                this.mesh.position.x += dir * this.speed * dt;
+                if(this.mesh.position.x > CONFIG.arenaRadius) this.mesh.position.x = CONFIG.arenaRadius;
+                if(this.mesh.position.x < -CONFIG.arenaRadius) this.mesh.position.x = -CONFIG.arenaRadius;
+                this.state = 'move';
+            }
+            jump() {
+                if(this.isGrounded && this.state !== 'hit' && this.state !== 'dead') {
+                    this.velocityY = this.jumpPower; this.isGrounded = false; sfx.playJump(); this.playAnim('jump');
+                }
+            }
+        }
+
+        const GameEngine = {
+            scene: null, camera: null, renderer: null, clock: null, p1: null, p2: null, inputs: null, particles: null, snowSystem: null,
+            animFrameId: null, isPlaying: false, comboCount: 0, comboTimer: 0, cinematicState: 0, cinematicTimer: 0, winner: null, loser: null, camTargetLookAt: null,
+            
+            p1Wins: 0, p2Wins: 0, currentRound: 1, isCountdown: false, targetRounds: 3,
+
+            initUI() {
+                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 1024);
+                if (isTouchDevice) { document.getElementById('mobile-controls').style.display = 'flex'; document.getElementById('pc-instructions').style.display = 'none'; } 
+                else { document.getElementById('mobile-controls').style.display = 'none'; document.getElementById('pc-instructions').style.display = 'block'; }
+            },
+            log(msg) { document.getElementById('loading-log').innerText = msg; },
+            updateProgress(pct) { document.getElementById('progress-bar').style.width = pct + '%'; },
+
+            setupEnvironment() {
+                this.scene.background = new THREE.Color(0x66B3FF); this.scene.fog = new THREE.FogExp2(0x66B3FF, 0.0008);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); this.scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xFFFAEE, 1.2); 
+                dirLight.position.set(100, 400, 150); dirLight.castShadow = true;
+                dirLight.shadow.camera.top = 300; dirLight.shadow.camera.bottom = -300; dirLight.shadow.camera.left = -300; dirLight.shadow.camera.right = 300;
+                this.scene.add(dirLight);
+
+                const groundGeo = new THREE.PlaneGeometry(2000, 1000); 
+                const groundMat = new THREE.MeshStandardMaterial({ color: 0xEEF5FF, roughness: 0.1, metalness: 0.3 });
+                const ground = new THREE.Mesh(groundGeo, groundMat); 
+                ground.rotation.x = -Math.PI / 2; ground.position.y = CONFIG.groundY; ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                const mountainGeo = new THREE.ConeGeometry(250, 600, 5);
+                const mountainMat = new THREE.MeshStandardMaterial({ color: 0xAAD0FF, roughness: 0.5, metalness: 0.2, flatShading: true });
+                for(let i=0; i<20; i++) {
+                    const m = new THREE.Mesh(mountainGeo, mountainMat);
+                    m.position.x = (Math.random() - 0.5) * 2000; m.position.z = -400 - Math.random() * 800; m.position.y = CONFIG.groundY + 100 + Math.random() * 200; m.rotation.y = Math.random() * Math.PI;
+                    this.scene.add(m);
+                }
+
+                const snowCount = 1000; const snowGeo = new THREE.BufferGeometry(); const snowPos = new Float32Array(snowCount * 3);
+                for(let i=0; i<snowCount * 3; i+=3) { snowPos[i] = (Math.random() - 0.5) * 2000; snowPos[i+1] = Math.random() * 1000; snowPos[i+2] = (Math.random() - 0.5) * 1000; }
+                snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+                const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.5, transparent: true, opacity: 0.9 });
+                this.snowSystem = new THREE.Points(snowGeo, snowMat); this.scene.add(this.snowSystem);
+                
+                // Apply setting for snow immediately
+                this.snowSystem.visible = document.getElementById('snow-toggle').checked;
+
+                this.camTargetLookAt = new THREE.Vector3(0, 50, 0);
+            },
+
+            async initGame(selectedChar) {
+                const bgm = document.getElementById('game-bgm'); bgm.volume = document.getElementById('bgm-vol').value; bgm.play().catch(e => console.log("Click required to play music"));
+                document.getElementById('menu-screen').style.display = 'none'; document.getElementById('loading-screen').style.display = 'flex';
+                this.initUI(); if(sfx.ctx && sfx.ctx.state === 'suspended') sfx.ctx.resume();
+
+                this.scene = new THREE.Scene(); 
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000); this.camera.position.set(0, 80, 450);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true }); this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.getElementById('game-canvas').appendChild(this.renderer.domElement);
+
+                this.setupEnvironment();
+                this.clock = new THREE.Clock(); this.inputs = new InputManager(); this.particles = new ParticleEngine(this.scene);
+
+                /* FIX 2: UI Name Always Maps 'YOU' to Left Bar, 'OPPONENT' to Right Bar */
+                let leftName = "YOU"; let rightName = "OPPONENT";
+                if(!MP_Manager.isOnline) {
+                    leftName = selectedChar === 'meta' ? "MONKEY OF KING" : "GOLDEN BOY"; 
+                    rightName = selectedChar === 'meta' ? "GOLDEN BOY" : "MONKEY OF KING";
+                }
+                
+                document.getElementById('p1-name-display').innerText = leftName; 
+                document.getElementById('p2-name-display').innerText = rightName;
+                
+                // Keep Internal names simple
+                this.p1 = new Fighter(this.scene, true, "P1"); 
+                this.p2 = new Fighter(this.scene, false, "P2");
+
+                try {
+                    this.log("Downloading 3D Models..."); this.updateProgress(10);
+                    const loader = new THREE.FBXLoader();
+                    const loadFbx = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+                    
+                    const [p1Fbx, p2Fbx] = await Promise.all([ 
+                        loadFbx(selectedChar === 'meta' ? ASSETS.meta : ASSETS.moto), 
+                        loadFbx(selectedChar === 'meta' ? ASSETS.moto : ASSETS.meta) 
+                    ]);
+                    
+                    this.updateProgress(40);
+                    
+                    this.log("Downloading Animations...");
+                    const animsData = {}; 
+                    const animKeys = ['punch', 'kick', 'hit', 'jump', 'win', 'lose']; 
+                    let loadedCount = 0;
+                    
+                    for (const key of animKeys) { 
+                        try { 
+                            const animFbx = await loadFbx(ASSETS[key]); 
+                            if (animFbx.animations.length > 0) animsData[key] = animFbx.animations[0]; 
+                        } catch(e) {
+                            console.log("Skipped missing anim: " + key);
+                        }
+                        loadedCount++; 
+                        this.updateProgress(40 + (loadedCount/animKeys.length)*60); 
+                        this.log(`Downloading Moves: ${loadedCount}/${animKeys.length}`);
+                    }
+                    
+                    this.log("Setting up Models...");
+                    this.p1.setFBX(p1Fbx, animsData); 
+                    this.p2.setFBX(p2Fbx, animsData);
+                    
+                    setTimeout(() => this.startGameplay(), 500);
+
+                } catch (error) { 
+                    this.log("Error loading models!");
+                    alert("Failed to load 3D Models! Please check your internet connection and refresh.");
+                }
+            },
+
+            startGameplay() {
+                document.getElementById('loading-screen').style.display = 'none'; 
+                document.getElementById('ui-layer').style.display = 'block'; 
+                document.getElementById('hud').style.display = 'flex';
+                document.getElementById('round-tracker').style.display = 'block';
+                
+                this.p1Wins = 0; this.p2Wins = 0; this.currentRound = 1;
+                
+                this.targetRounds = MP_Manager.isOnline ? MP_Manager.targetRounds : 3;
+
+                this.isPlaying = true; this.cinematicState = 0; 
+                this.animate();
+                
+                if(MP_Manager.isOnline) MP_Manager.startGameSync();
+
+                this.startRoundSequence();
+            },
+
+            startRoundSequence() {
+                this.isCountdown = true;
+                this.cinematicState = 0;
+                this.p1.resetForRound(); this.p2.resetForRound();
+                this.camera.position.set(0, 80, 450); this.camTargetLookAt.set(0, 50, 0);
+
+                document.getElementById('current-round-text').innerText = this.currentRound;
+                document.getElementById('p1-win-count').innerText = this.p1Wins;
+                document.getElementById('p2-win-count').innerText = this.p2Wins;
+
+                const countUI = document.getElementById('countdown-ui');
+                countUI.style.display = 'flex';
+                
+                let count = 3;
+                countUI.innerText = count; countUI.className = 'anim-pop'; sfx.playCountBeep();
+
+                let countInterval = setInterval(() => {
+                    count--;
+                    countUI.classList.remove('anim-pop');
+                    void countUI.offsetWidth; 
+                    
+                    if(count > 0) {
+                        countUI.innerText = count; countUI.classList.add('anim-pop'); sfx.playCountBeep();
+                    } else if (count === 0) {
+                        countUI.innerText = "FIGHT!"; countUI.classList.add('anim-pop');
+                        countUI.style.color = "#ff0000"; sfx.playFightBeep();
+                    } else {
+                        clearInterval(countInterval);
+                        countUI.style.display = 'none';
+                        countUI.style.color = "#fff";
+                        this.isCountdown = false; 
+                    }
+                }, 1000);
+            },
+
+            addCombo() {
+                this.comboCount++; this.comboTimer = 2.0;
+                const display = document.getElementById('combo-display'); display.innerText = `${this.comboCount} HITS!`;
+                display.classList.remove('combo-active'); void display.offsetWidth; display.classList.add('combo-active');
+            },
+            flashScreen() { const flash = document.getElementById('damage-flash'); flash.style.opacity = 0.4; setTimeout(() => flash.style.opacity = 0, 100); },
+
+            processCombat(attacker, defender) {
+                if(attacker.state === 'attack' && !attacker.damageDealt) {
+                    const maxCD = attacker.currentDamage === 8 ? 0.6 : 0.9;
+                    const elapsed = maxCD - attacker.attackCooldown;
+                    if(elapsed > maxCD * 0.4) {
+                        attacker.damageDealt = true; 
+                        
+                        const dist = Math.abs(attacker.mesh.position.x - defender.mesh.position.x);
+                        if(dist < attacker.hitboxRange + 30 && defender.state !== 'hit' && defender.state !== 'dead') {
+                            
+                            let finalDamage = attacker.currentDamage;
+                            
+                            if(!MP_Manager.isOnline) {
+                                if(attacker === this.p1) { finalDamage = finalDamage * 2; } 
+                                else if (attacker === this.p2) { finalDamage = Math.ceil(finalDamage * 0.4); }
+                            }
+
+                            const result = defender.takeDamage(finalDamage);
+                            this.particles.createHitEffect(defender.mesh.position.x, defender.mesh.position.y + 70, defender.mesh.position.z + 10, result === 'blocked');
+                            
+                            /* FIX 2: Dynamic Effects target for Local Player */
+                            let localFighter = (MP_Manager.isOnline && MP_Manager.role === 'p2') ? this.p2 : this.p1;
+                            
+                            if(result === 'hit') {
+                                if(attacker === localFighter) this.addCombo(); 
+                                if(defender === localFighter) this.flashScreen();
+                                defender.mesh.position.x += (defender.mesh.position.x > attacker.mesh.position.x ? 25 : -25);
+                            } else if (result === 'blocked') { 
+                                if(attacker === localFighter) this.comboCount = 0; 
+                            }
+                        }
+                    }
+                }
+            },
+
+            updateEnemyAI(dt) {
+                if(MP_Manager.isOnline) return;
+
+                const dist = Math.abs(this.p2.mesh.position.x - this.p1.mesh.position.x);
+                const dir = this.p1.mesh.position.x > this.p2.mesh.position.x ? 1 : -1;
+                
+                if (this.p2.state === 'idle' || this.p2.state === 'move') {
+                    if (dist > this.p2.hitboxRange - 20) { this.p2.move(dir, dt); }
+                    else {
+                        this.p2.state = 'idle';
+                        if(this.p1.state === 'attack' && Math.random() > 0.95 && this.p2.stamina > 20) { 
+                            this.p2.state = 'block'; this.p2.playAnim('idle'); 
+                        } 
+                        else if (this.p2.stamina >= 25 && Math.random() > 0.96) { 
+                            this.p2.attack(Math.random() > 0.5 ? 'kick' : 'punch'); 
+                        }
+                    }
+                } else if (this.p2.state === 'block' && this.p1.state !== 'attack') { this.p2.state = 'idle'; }
+            },
+
+            updateHUD(dt) {
+                /* FIX 2: Always render the Local Player's HP on the Left (Green bar) */
+                let localHp = this.p1.hp, oppHp = this.p2.hp;
+                let localStamina = this.p1.stamina, oppStamina = this.p2.stamina;
+
+                // Swap UI values ONLY if user is Guest (P2)
+                if (MP_Manager.isOnline && MP_Manager.role === 'p2') {
+                    localHp = this.p2.hp; oppHp = this.p1.hp;
+                    localStamina = this.p2.stamina; oppStamina = this.p1.stamina;
+                }
+
+                document.getElementById('p1-hp').style.width = localHp + '%';
+                document.getElementById('p2-hp').style.width = oppHp + '%';
+                document.getElementById('p1-stamina').style.width = localStamina + '%';
+                document.getElementById('p2-stamina').style.width = oppStamina + '%';
+
+                if(this.comboTimer > 0) { 
+                    this.comboTimer -= dt; 
+                    if(this.comboTimer <= 0) { this.comboCount = 0; document.getElementById('combo-display').classList.remove('combo-active'); } 
+                }
+            },
+
+            checkWinCondition() {
+                if((this.p1.hp <= 0 || this.p2.hp <= 0) && this.cinematicState === 0 && !this.isCountdown) {
+                    
+                    let roundWinner = this.p1.hp > 0 ? this.p1 : this.p2;
+                    let roundLoser = this.p1.hp <= 0 ? this.p1 : this.p2;
+
+                    roundLoser.playAnim('lose'); roundWinner.state = 'idle'; roundWinner.playAnim('idle');
+
+                    if(roundWinner === this.p1) this.p1Wins++; else this.p2Wins++;
+                    
+                    document.getElementById('p1-win-count').innerText = this.p1Wins;
+                    document.getElementById('p2-win-count').innerText = this.p2Wins;
+
+                    if(this.p1Wins >= this.targetRounds || this.p2Wins >= this.targetRounds) {
+                        this.cinematicState = 1; this.cinematicTimer = 0;
+                        const bgm = document.getElementById('game-bgm');
+                        if(bgm) { let fadeOut = setInterval(() => { if (bgm.volume > 0.05) bgm.volume -= 0.05; else { clearInterval(fadeOut); bgm.pause(); } }, 200); }
+                        
+                        this.winner = roundWinner; this.loser = roundLoser;
+                        
+                        if(!MP_Manager.isOnline) {
+                            if (this.winner === this.p1) { UserData.addMatchReward(); }
+                        } else {
+                            let isLocalWinner = (this.winner === this.p1 && MP_Manager.role === 'p1') || (this.winner === this.p2 && MP_Manager.role === 'p2');
+                            MP_Manager.endGame(isLocalWinner);
+                        }
+
+                        document.getElementById('hud').style.opacity = '0'; document.getElementById('mobile-controls').style.opacity = '0'; document.getElementById('pc-instructions').style.opacity = '0'; document.getElementById('round-tracker').style.opacity = '0';
+                        setTimeout(() => { document.getElementById('hud').style.display = 'none'; document.getElementById('mobile-controls').style.display = 'none'; document.getElementById('pc-instructions').style.display = 'none'; }, 500);
+                    } 
+                    else {
+                        this.cinematicState = 3; 
+                        const msgUI = document.getElementById('round-msg-ui');
+                        
+                        let localWinnerName = "PLAYER 1";
+                        if(MP_Manager.isOnline) {
+                            if(roundWinner === this.p1) localWinnerName = MP_Manager.role === 'p1' ? "YOU" : "OPPONENT";
+                            else localWinnerName = MP_Manager.role === 'p2' ? "YOU" : "OPPONENT";
+                        } else {
+                            localWinnerName = roundWinner === this.p1 ? "PLAYER 1" : "OPPONENT";
+                        }
+                        
+                        msgUI.innerText = localWinnerName + " WINS ROUND!";
+                        msgUI.style.display = 'block'; msgUI.className = 'anim-pop';
+                        
+                        setTimeout(() => {
+                            msgUI.style.display = 'none';
+                            this.currentRound++;
+                            this.startRoundSequence();
+                        }, 3000);
+                    }
+                }
+            },
+
+            animate() {
+                this.animFrameId = requestAnimationFrame(() => this.animate());
+                const dt = Math.min(this.clock.getDelta(), 0.1);
+                
+                if (this.isPlaying) {
+                    if (this.cinematicState === 0) {
+                        if(!this.isCountdown) {
+                            let localFighter = MP_Manager.isOnline && MP_Manager.role === 'p2' ? this.p2 : this.p1;
+                            
+                            if(localFighter.state !== 'dead' && localFighter.state !== 'hit') {
+                                let moved = false;
+                                if(this.inputs.keys.block) { localFighter.state = 'block'; moved = true; } 
+                                else {
+                                    if(this.inputs.keys.left) { localFighter.move(-1, dt); moved = true; }
+                                    if(this.inputs.keys.right) { localFighter.move(1, dt); moved = true; }
+                                    if(this.inputs.keys.up) { localFighter.jump(); }
+                                    if(this.inputs.keys.punch && localFighter.attackCooldown <= 0) localFighter.attack('punch');
+                                    else if(this.inputs.keys.kick && localFighter.attackCooldown <= 0) localFighter.attack('kick');
+                                }
+                                if(!moved && localFighter.state === 'move') { localFighter.state = 'idle'; localFighter.playAnim('idle'); }
+                            }
+                            this.updateEnemyAI(dt);
+                            this.processCombat(this.p1, this.p2); 
+                            this.processCombat(this.p2, this.p1);
+                            this.checkWinCondition();
+                        }
+                        
+                        this.updateHUD(dt); 
+
+                        const midX = (this.p1.mesh.position.x + this.p2.mesh.position.x) / 2;
+                        const dist = Math.abs(this.p1.mesh.position.x - this.p2.mesh.position.x);
+                        this.camera.position.x += (midX - this.camera.position.x) * 0.05;
+                        this.camera.position.z += (Math.max(350, dist + 200) - this.camera.position.z) * 0.05;
+                        
+                        this.camTargetLookAt.set(midX, 50, 0); this.camera.lookAt(this.camTargetLookAt);
+                    } 
+                    else if (this.cinematicState === 1 || this.cinematicState === 2) {
+                        this.cinematicTimer += dt; let targetPos = new THREE.Vector3(); let targetLook = new THREE.Vector3();
+                        if (this.cinematicState === 1) {
+                            targetPos.set(this.loser.mesh.position.x + (this.loser.mesh.position.x > this.winner.mesh.position.x ? 80 : -80), 30, 200);
+                            targetLook.set(this.loser.mesh.position.x, 20, 0);
+                            if (this.cinematicTimer > 2.5) { this.cinematicState = 2; this.cinematicTimer = 0; this.winner.playAnim('win'); }
+                        } 
+                        else if (this.cinematicState === 2) {
+                            targetPos.set(this.winner.mesh.position.x + Math.sin(this.cinematicTimer) * 150, 60, 220);
+                            targetLook.set(this.winner.mesh.position.x, 60, 0);
+                            if (this.cinematicTimer > 3.5 && !document.getElementById('game-over-screen').style.display) {
+                                document.getElementById('game-over-screen').style.display = 'flex';
+                                const title = document.getElementById('go-subtitle');
+                                
+                                let isLocalWinner = true;
+                                if(MP_Manager.isOnline) {
+                                    isLocalWinner = (this.winner === this.p1 && MP_Manager.role === 'p1') || (this.winner === this.p2 && MP_Manager.role === 'p2');
+                                } else {
+                                    isLocalWinner = (this.winner === this.p1);
+                                }
+
+                                if(isLocalWinner) { title.innerText = "MATCH WON!"; title.style.color = "#00ffaa"; } 
+                                else { title.innerText = "MATCH LOST!"; title.style.color = "#ff3333"; if(!MP_Manager.isOnline) document.getElementById('reward-display').style.display = 'none';}
+                            }
+                        }
+                        this.camera.position.lerp(targetPos, 0.04); this.camTargetLookAt.lerp(targetLook, 0.06); this.camera.lookAt(this.camTargetLookAt);
+                    }
+
+                    this.p1.update(dt, this.p2); this.p2.update(dt, this.p1); this.particles.update(dt); 
+
+                    if(this.snowSystem && this.snowSystem.visible) {
+                        const positions = this.snowSystem.geometry.attributes.position.array;
+                        for(let i=1; i<positions.length; i+=3) { positions[i] -= dt * 200; if(positions[i] < CONFIG.groundY) { positions[i] = 1000; } }
+                        this.snowSystem.geometry.attributes.position.needsUpdate = true;
+                    }
+                }
+                this.renderer.render(this.scene, this.camera);
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            if(GameEngine.camera && GameEngine.renderer) {
+                GameEngine.camera.aspect = window.innerWidth / window.innerHeight;
+                GameEngine.camera.updateProjectionMatrix(); GameEngine.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+
+        // =========================================
+        // FULLSCREEN ON FIRST TAP (Mobile App Experience)
+        // =========================================
+        function enableFullscreen() {
+            const docEl = document.documentElement;
+            const requestFullscreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
+            
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
+                if (requestFullscreen) {
+                    requestFullscreen.call(docEl).catch(err => {
+                        console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                    });
+                }
+            }
+        }
+
+        // Attach listeners to trigger fullscreen on first interaction
+        document.body.addEventListener('click', enableFullscreen, { once: false });
+        document.body.addEventListener('touchstart', enableFullscreen, { once: false });
+    </script>
+</body>
+</html>
